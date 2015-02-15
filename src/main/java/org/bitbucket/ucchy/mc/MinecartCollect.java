@@ -20,20 +20,31 @@ import java.util.zip.ZipEntry;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Vehicle;
 import org.bukkit.entity.minecart.RideableMinecart;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.vehicle.VehicleDestroyEvent;
+import org.bukkit.event.vehicle.VehicleEnterEvent;
 import org.bukkit.event.vehicle.VehicleExitEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitRunnable;
 
 /**
  * マインカート乗り捨て防止プラグイン
  * @author ucchy
  */
 public class MinecartCollect extends JavaPlugin implements Listener {
+
+    private static final String META_NAME = "MinecartCollect";
+
+    private static MinecartCollect instance;
 
     private String configMessageCollected;
     private String configMessageDisappear;
@@ -44,6 +55,8 @@ public class MinecartCollect extends JavaPlugin implements Listener {
      */
     @Override
     public void onEnable() {
+
+        instance = this;
 
         // リスナー登録
         getServer().getPluginManager().registerEvents(this, this);
@@ -59,6 +72,27 @@ public class MinecartCollect extends JavaPlugin implements Listener {
         YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
         configMessageCollected = replaceColorCode(config.getString("messageCollected"));
         configMessageDisappear = replaceColorCode(config.getString("messageDisappear"));
+    }
+
+    /**
+     * 乗り物に乗った時に発生するイベント
+     * @param event
+     */
+    @EventHandler
+    public void onVehicleEnter(VehicleEnterEvent event) {
+
+        // 乗ろうとしているエンティティがプレイヤーでないなら、イベントを無視する
+        if ( !(event.getEntered() instanceof Player) ) {
+            return;
+        }
+
+        // 乗ろうとしている乗り物がMinecartでないなら、イベントを無視する
+        if ( !(event.getVehicle() instanceof RideableMinecart) ) {
+            return;
+        }
+
+        // メタデータを設定する
+        event.getVehicle().setMetadata(META_NAME, new FixedMetadataValue(this, true));
     }
 
     /**
@@ -79,9 +113,17 @@ public class MinecartCollect extends JavaPlugin implements Listener {
         }
 
         Player player = (Player)event.getExited();
+        final Vehicle vehicle = event.getVehicle();
 
         // 乗っていたマインカートを削除する
-        event.getVehicle().remove();
+        vehicle.remove();
+
+        // 2tich後にメタデータを消去する
+        new BukkitRunnable() {
+            public void run() {
+                vehicle.removeMetadata(META_NAME, instance);
+            }
+        }.runTaskLater(this, 2);
 
         // マインカートのアイテムを作成し、プレイヤーのインベントリに追加する
         ItemStack item = new ItemStack(Material.MINECART);
@@ -95,6 +137,52 @@ public class MinecartCollect extends JavaPlugin implements Listener {
                 player.sendMessage(configMessageDisappear);
             }
         }
+    }
+
+    /**
+     * 乗り物が壊された時に発生するイベント
+     * @param event
+     */
+    @EventHandler
+    public void onVehicleDestroy(VehicleDestroyEvent event) {
+
+        // 壊された乗り物がMinecartでないなら、イベントを無視する
+        if ( !(event.getVehicle() instanceof RideableMinecart) ) {
+            return;
+        }
+
+        // メタデータが無いなら、イベントを無視する
+        if ( !event.getVehicle().hasMetadata(META_NAME) ) {
+            return;
+        }
+
+        // イベントをキャンセルして、アイテムがドロップしないようにする
+        event.setCancelled(true);
+    }
+
+    /**
+     * プレイヤーが死亡した時に発生するイベント
+     * @param event
+     */
+    @EventHandler
+    public void onPlayerDeath(PlayerDeathEvent event) {
+
+        // プレイヤーが乗り物に乗っていなかったなら、イベントを無視する
+        if ( !event.getEntity().isInsideVehicle() ) {
+            return;
+        }
+
+        // 乗り物がトロッコでないなら、イベントを無視する
+        Entity vehicle = event.getEntity().getVehicle();
+        if ( !(vehicle instanceof RideableMinecart) ) {
+            return;
+        }
+
+        // 乗っていたマインカートを削除し、その場にアイテム化する
+        vehicle.removeMetadata(META_NAME, this);
+        vehicle.remove();
+        vehicle.getWorld().dropItemNaturally(
+                vehicle.getLocation(), new ItemStack(Material.MINECART));
     }
 
     /**
