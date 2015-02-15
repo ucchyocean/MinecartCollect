@@ -1,0 +1,10 @@
+# ${project.name} v${project.version}
+# @author     ucchy
+# @license    LGPLv3
+# @copyright  Copyright ucchy 2015
+
+# インベントリへトロッコを回収したときに、表示されるメッセージ
+messageCollected: '&d！！乗っていたトロッコは、あなたのインベントリに入りました。'
+
+# インベントリがいっぱいでトロッコが消滅したときに、表示されるメッセージ
+messageDisappear: '&d！！乗っていたトロッコは、消去されました。'

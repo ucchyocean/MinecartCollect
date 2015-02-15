@@ -1,0 +1,5 @@
+name: ${project.name}
+version: ${project.version}
+main: org.bitbucket.ucchy.mc.MinecartCollect
+Description: MinecartCollect Plugin
+author: ucchy
