@@ -118,7 +118,7 @@ public class MinecartCollect extends JavaPlugin implements Listener {
         // 乗っていたマインカートを削除する
         vehicle.remove();
 
-        // 2tich後にメタデータを消去する
+        // 2tick後にメタデータを消去する
         new BukkitRunnable() {
             public void run() {
                 vehicle.removeMetadata(META_NAME, instance);
