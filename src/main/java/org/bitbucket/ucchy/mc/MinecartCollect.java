@@ -21,6 +21,7 @@ import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.Minecart;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Vehicle;
 import org.bukkit.entity.minecart.RideableMinecart;
@@ -32,6 +33,7 @@ import org.bukkit.event.vehicle.VehicleEnterEvent;
 import org.bukkit.event.vehicle.VehicleExitEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -114,6 +116,8 @@ public class MinecartCollect extends JavaPlugin implements Listener {
 
         Player player = (Player)event.getExited();
         final Vehicle vehicle = event.getVehicle();
+        Minecart cart = (Minecart)vehicle;
+        String customName = cart.getCustomName();
 
         // 乗っていたマインカートを削除する
         vehicle.remove();
@@ -121,12 +125,19 @@ public class MinecartCollect extends JavaPlugin implements Listener {
         // 2tick後にメタデータを消去する
         new BukkitRunnable() {
             public void run() {
-                vehicle.removeMetadata(META_NAME, instance);
+                if ( vehicle != null ) {
+                    vehicle.removeMetadata(META_NAME, instance);
+                }
             }
         }.runTaskLater(this, 2);
 
         // マインカートのアイテムを作成し、プレイヤーのインベントリに追加する
         ItemStack item = new ItemStack(Material.MINECART);
+        if ( customName != null ) {
+            ItemMeta meta = item.getItemMeta();
+            meta.setDisplayName(customName);
+            item.setItemMeta(meta);
+        }
         if ( getEmptySlotCount(player.getInventory()) > 0 ) {
             player.getInventory().addItem(item);
             if ( configMessageCollected != null ) {
@@ -178,11 +189,20 @@ public class MinecartCollect extends JavaPlugin implements Listener {
             return;
         }
 
-        // 乗っていたマインカートを削除し、その場にアイテム化する
+        // 乗っていたマインカートを削除し、その場にアイテム化することで、
+        // 死亡ドロップ品と混ぜてしまう。
         vehicle.removeMetadata(META_NAME, this);
         vehicle.remove();
-        vehicle.getWorld().dropItemNaturally(
-                vehicle.getLocation(), new ItemStack(Material.MINECART));
+        Minecart cart = (Minecart)vehicle;
+        String customName = cart.getCustomName();
+
+        ItemStack item = new ItemStack(Material.MINECART);
+        if ( customName != null ) {
+            ItemMeta meta = item.getItemMeta();
+            meta.setDisplayName(customName);
+            item.setItemMeta(meta);
+        }
+        vehicle.getWorld().dropItemNaturally(vehicle.getLocation(), item);
     }
 
     /**
