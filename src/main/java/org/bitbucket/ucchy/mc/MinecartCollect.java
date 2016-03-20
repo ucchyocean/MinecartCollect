@@ -17,6 +17,7 @@ import java.io.OutputStreamWriter;
 import java.util.jar.JarFile;
 import java.util.zip.ZipEntry;
 
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -31,8 +32,8 @@ import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.vehicle.VehicleDestroyEvent;
 import org.bukkit.event.vehicle.VehicleEnterEvent;
 import org.bukkit.event.vehicle.VehicleExitEvent;
-import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -210,10 +211,11 @@ public class MinecartCollect extends JavaPlugin implements Listener {
      * @param inv インベントリ
      * @return 空きスロット数
      */
-    private int getEmptySlotCount(Inventory inv) {
+    private int getEmptySlotCount(PlayerInventory inv) {
         int count = 0;
-        for ( ItemStack i : inv.getContents() ) {
-            if ( i == null || i.getType() == Material.AIR ) {
+        for ( int index = 0; index < 36; index++ ) {
+            ItemStack item = inv.getItem(index);
+            if ( item == null || item.getType() == Material.AIR ) {
                 count++;
             }
         }
@@ -259,7 +261,13 @@ public class MinecartCollect extends JavaPlugin implements Listener {
             fos = new FileOutputStream(targetFile);
 
             reader = new BufferedReader(new InputStreamReader(is, "UTF-8"));
-            writer = new BufferedWriter(new OutputStreamWriter(fos));
+
+            // CB190以降は、書き出すファイルエンコードにUTF-8を強制する。
+            if ( isCB19orLater() ) {
+                writer = new BufferedWriter(new OutputStreamWriter(fos, "UTF-8"));
+            } else {
+                writer = new BufferedWriter(new OutputStreamWriter(fos));
+            }
 
             String line;
             while ((line = reader.readLine()) != null) {
@@ -309,6 +317,61 @@ public class MinecartCollect extends JavaPlugin implements Listener {
                     // do nothing.
                 }
             }
+        }
+    }
+
+    /**
+     * 現在動作中のCraftBukkitが、v1.9 以上かどうかを確認する
+     * @return v1.8以上ならtrue、そうでないならfalse
+     */
+    private static boolean isCB19orLater() {
+        return isUpperVersion(Bukkit.getBukkitVersion(), "1.9");
+    }
+
+    /**
+     * 指定されたバージョンが、基準より新しいバージョンかどうかを確認する
+     * @param version 確認するバージョン
+     * @param border 基準のバージョン
+     * @return 基準より確認対象の方が新しいバージョンかどうか<br/>
+     * ただし、無効なバージョン番号（数値でないなど）が指定された場合はfalseに、
+     * 2つのバージョンが完全一致した場合はtrueになる。
+     */
+    private static boolean isUpperVersion(String version, String border) {
+
+        int hyphen = version.indexOf("-");
+        if ( hyphen > 0 ) {
+            version = version.substring(0, hyphen);
+        }
+
+        String[] versionArray = version.split("\\.");
+        int[] versionNumbers = new int[versionArray.length];
+        for ( int i=0; i<versionArray.length; i++ ) {
+            if ( !versionArray[i].matches("[0-9]+") )
+                return false;
+            versionNumbers[i] = Integer.parseInt(versionArray[i]);
+        }
+
+        String[] borderArray = border.split("\\.");
+        int[] borderNumbers = new int[borderArray.length];
+        for ( int i=0; i<borderArray.length; i++ ) {
+            if ( !borderArray[i].matches("[0-9]+") )
+                return false;
+            borderNumbers[i] = Integer.parseInt(borderArray[i]);
+        }
+
+        int index = 0;
+        while ( (versionNumbers.length > index) && (borderNumbers.length > index) ) {
+            if ( versionNumbers[index] > borderNumbers[index] ) {
+                return true;
+            } else if ( versionNumbers[index] < borderNumbers[index] ) {
+                return false;
+            }
+            index++;
+        }
+        if ( borderNumbers.length == index ) {
+            return true;
+        } else {
+            return false;
         }
     }
 }
